@@ -138,12 +138,60 @@ void setup()
 void mapEmptyBuffers()
 {
     //Map all NULL I/O buffers to Modbus registers
+    unsigned countInputs = 0;
     for (int i = 0; i < MAX_DIGITAL_OUTPUT; i++)
     {
         if (bool_output[i/8][i%8] == NULL)
+            ++countInputs;
+    }
+
+    unsigned countOutputs = 0;
+    for (int i = 0; i < MAX_DIGITAL_INPUT; i++)
+    {
+        if (bool_input[i/8][i%8] == NULL)
+            ++countOutputs;
+    }
+
+    IEC_BOOL *mbBuffer = (IEC_BOOL *)calloc(countInputs+countOutputs, sizeof(IEC_BOOL));    // upper bound is ~112 bytes, should succeed
+    while (!mbBuffer)   // if the heap is already exhausted, we need to reduce the allocated number
+    {
+        // reduce evenly the number of inputs and outputs in case of allocation failure
+        if (!!countOutputs)
         {
-            bool_output[i/8][i%8] = (IEC_BOOL *)malloc(sizeof(IEC_BOOL));
-            *bool_output[i/8][i%8] = 0;
+            --countOutputs;
+            mbBuffer = (IEC_BOOL *)calloc(countInputs+countOutputs, sizeof(IEC_BOOL));
+
+            if (!!mbBuffer)
+                break;
+        }
+
+        if (!!countInputs)
+        {
+            --countInputs;
+            mbBuffer = (IEC_BOOL *)calloc(countInputs+countOutputs, sizeof(IEC_BOOL));
+        }
+    }
+
+    if (!!mbBuffer)
+    {
+        for (int i = 0; i < MAX_DIGITAL_OUTPUT; i++)
+        {
+            if (bool_output[i/8][i%8] == NULL)
+            {
+                bool_output[i/8][i%8] = mbBuffer;
+                *bool_output[i/8][i%8] = 0;
+                ++mbBuffer;
+            }
+        }
+
+        for (int i = 0; i < MAX_DIGITAL_INPUT; i++)
+        {
+            if (bool_input[i/8][i%8] == NULL)
+            {
+                bool_input[i/8][i%8] = mbBuffer;
+                *bool_input[i/8][i%8] = 0;
+                ++mbBuffer;
+            }
         }
     }
     for (int i = 0; i < MAX_ANALOG_OUTPUT; i++)
@@ -151,14 +199,6 @@ void mapEmptyBuffers()
         if (int_output[i] == NULL)
         {
             int_output[i] = (IEC_UINT *)(modbus.holding + i);
-        }
-    }
-    for (int i = 0; i < MAX_DIGITAL_INPUT; i++)
-    {
-        if (bool_input[i/8][i%8] == NULL)
-        {
-            bool_input[i/8][i%8] = (IEC_BOOL *)malloc(sizeof(IEC_BOOL));
-            *bool_input[i/8][i%8] = 0;
         }
     }
     for (int i = 0; i < MAX_ANALOG_INPUT; i++)
