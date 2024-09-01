@@ -1,6 +1,14 @@
 #ifndef __ACCESSOR_H
 #define __ACCESSOR_H
 
+#include <stddef.h>
+typedef struct retained_location
+{
+    void* value_location;
+    size_t value_size;
+} retained_location;
+extern void register_retained_value(const retained_location* loc);
+
 #define __INITIAL_VALUE(...) __VA_ARGS__
 
 // variable declaration macros
@@ -51,6 +59,12 @@
 
 // variable initialization macros
 #define __INIT_RETAIN(name, retained)\
+    if (!!retained && !(name.flags & __IEC_RETAIN_FLAG)) { \
+      retained_location loc;\
+      loc.value_location = &name.value;\
+      loc.value_size = sizeof(name.value);\
+      register_retained_value(&loc);\
+    }\
     name.flags |= retained?__IEC_RETAIN_FLAG:0;
 #define __INIT_VAR(name, initial, retained)\
 	name.value = initial;\
@@ -62,22 +76,32 @@
 	    __INIT_RETAIN((*GLOBAL__##name), retained)\
     }
 #define __INIT_GLOBAL_FB(type, name, retained)\
-	type##_init__(&(*GLOBAL__##name), retained);
+    type##_init__(&(*GLOBAL__##name), retained);
+
+#define __INIT_RETAIN_p(name, retained)\
+    if (!!retained && !(name.flags & __IEC_RETAIN_FLAG)) { \
+      retained_location loc;\
+      loc.value_location = name.value;\
+      loc.value_size = sizeof(*name.value);\
+      register_retained_value(&loc);\
+    }\
+    name.flags |= retained?__IEC_RETAIN_FLAG:0;
+
 #define __INIT_GLOBAL_LOCATED(domain, name, location, retained)\
-	domain##__##name.value = location;\
-	__INIT_RETAIN(domain##__##name, retained)
+    domain##__##name.value = location;\
+    __INIT_RETAIN_p(domain##__##name, retained)
 #define __INIT_EXTERNAL(type, global, name, retained)\
     {\
-		name.value = __GET_GLOBAL_##global();\
-		__INIT_RETAIN(name, retained)\
+        name.value = __GET_GLOBAL_##global();\
+        __INIT_RETAIN_p(name, retained)\
     }
 #define __INIT_EXTERNAL_FB(type, global, name, retained)\
 	name = __GET_GLOBAL_##global();
 #define __INIT_LOCATED(type, location, name, retained)\
-	{\
-		extern type *location;\
-		name.value = location;\
-		__INIT_RETAIN(name, retained)\
+    {\
+        extern type *location;\
+        name.value = location;\
+        __INIT_RETAIN_p(name, retained)\
     }
 #define __INIT_LOCATED_VALUE(name, initial)\
 	*(name.value) = initial;
