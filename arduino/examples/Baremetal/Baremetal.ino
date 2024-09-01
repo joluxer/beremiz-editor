@@ -109,16 +109,25 @@ void setup()
         uint8_t gateway[] = { MBTCP_GATEWAY };
         uint8_t subnet[] = { MBTCP_SUBNET };
 
+        auto *macPtr = mac;
+        auto *ipPtr = ip;
+        auto *dnsPtr = dns;
+        auto *gatewayPtr = gateway;
+        auto *subnetPtr = subnet;
+
         if (sizeof(ip)/sizeof(uint8_t) < 4)
-            mbconfig_ethernet_iface(mac, NULL, NULL, NULL, NULL);
-        else if (sizeof(dns)/sizeof(uint8_t) < 4)
-            mbconfig_ethernet_iface(mac, ip, NULL, NULL, NULL);
-        else if (sizeof(gateway)/sizeof(uint8_t) < 4)
-            mbconfig_ethernet_iface(mac, ip, dns, NULL, NULL);
-        else if (sizeof(subnet)/sizeof(uint8_t) < 4)
-            mbconfig_ethernet_iface(mac, ip, dns, gateway, NULL);
-        else
-            mbconfig_ethernet_iface(mac, ip, dns, gateway, subnet);
+            ipPtr = nullptr;
+
+        if (sizeof(subnet)/sizeof(uint8_t) < 4)
+            subnetPtr = nullptr;
+
+        if (sizeof(gateway)/sizeof(uint8_t) < 4)
+            gatewayPtr = nullptr;
+
+        if (sizeof(dns)/sizeof(uint8_t) < 4)
+            dnsPtr = nullptr;
+
+        mbconfig_ethernet_iface(macPtr, ipPtr, dnsPtr, gatewayPtr, subnetPtr);
         #endif
 
         //Add all modbus registers
