@@ -22,6 +22,9 @@ unsigned long last_run = 0;
 #include "arduino_libs.h"
 
 #ifdef USE_ARDUINO_SKETCH
+    __attribute__((weak)) void sketch_setup();
+    __attribute__((weak)) void sketch_cycle_task();
+    __attribute__((weak)) void sketch_loop();
     #include "ext/arduino_sketch.h"
 #endif
 
@@ -33,7 +36,7 @@ extern uint8_t pinMask_AOUT[];
 /*
 extern "C" int availableMemory(char *);
 
-int availableMemory(char *msg) 
+int availableMemory(char *msg)
 {
   int size = 8192; // Use 2048 with ATmega328
   byte *buf;
@@ -52,7 +55,7 @@ void setupCycleDelay(unsigned long long cycle_time)
     last_run = micros();
 }
 
-void setup() 
+void setup()
 {
     //Turn off WiFi radio on ESP32 and ESP8266 boards if we're not using WiFi
     #ifndef MBTCP
@@ -63,9 +66,9 @@ void setup()
     config_init__();
     glueVars();
     hardwareInit();
-	#ifdef MODBUS_ENABLED
+    #ifdef MODBUS_ENABLED
         #ifdef MBSERIAL
-	        //Config Modbus Serial (port, speed, rs485 tx pin)
+            //Config Modbus Serial (port, speed, rs485 tx pin)
             #ifdef MBSERIAL_TXPIN
                 //Disable TX pin from OpenPLC hardware layer
                 for (int i = 0; i < NUM_DISCRETE_INPUT; i++)
@@ -94,18 +97,18 @@ void setup()
                 MBSERIAL_IFACE.begin(MBSERIAL_BAUD); //Initialize serial interface
                 mbconfig_serial_iface(&MBSERIAL_IFACE, MBSERIAL_BAUD, -1);;
             #endif
-	
-	        //Set the Slave ID
-	        modbus.slaveid = MBSERIAL_SLAVE;
+
+            //Set the Slave ID
+            modbus.slaveid = MBSERIAL_SLAVE;
         #endif
-    
+
         #ifdef MBTCP
         uint8_t mac[] = { MBTCP_MAC };
         uint8_t ip[] = { MBTCP_IP };
         uint8_t dns[] = { MBTCP_DNS };
         uint8_t gateway[] = { MBTCP_GATEWAY };
         uint8_t subnet[] = { MBTCP_SUBNET };
-        
+
         if (sizeof(ip)/sizeof(uint8_t) < 4)
             mbconfig_ethernet_iface(mac, NULL, NULL, NULL, NULL);
         else if (sizeof(dns)/sizeof(uint8_t) < 4)
@@ -117,15 +120,16 @@ void setup()
         else
             mbconfig_ethernet_iface(mac, ip, dns, gateway, subnet);
         #endif
-        
+
         //Add all modbus registers
         init_mbregs(MAX_ANALOG_OUTPUT + MAX_MEMORY_WORD, MAX_MEMORY_DWORD, MAX_MEMORY_LWORD, MAX_DIGITAL_OUTPUT, MAX_ANALOG_INPUT, MAX_DIGITAL_INPUT);
         mapEmptyBuffers();
-	#endif
+    #endif
 
     setupCycleDelay(common_ticktime__);
 
     #ifdef USE_ARDUINO_SKETCH
+    if (!!sketch_setup)
         sketch_setup();
     #endif
 }
@@ -138,15 +142,15 @@ void mapEmptyBuffers()
     {
         if (bool_output[i/8][i%8] == NULL)
         {
-			bool_output[i/8][i%8] = (IEC_BOOL *)malloc(sizeof(IEC_BOOL));
-			*bool_output[i/8][i%8] = 0;
+            bool_output[i/8][i%8] = (IEC_BOOL *)malloc(sizeof(IEC_BOOL));
+            *bool_output[i/8][i%8] = 0;
         }
     }
     for (int i = 0; i < MAX_ANALOG_OUTPUT; i++)
     {
         if (int_output[i] == NULL)
         {
-			int_output[i] = (IEC_UINT *)(modbus.holding + i);
+            int_output[i] = (IEC_UINT *)(modbus.holding + i);
         }
     }
     for (int i = 0; i < MAX_DIGITAL_INPUT; i++)
@@ -154,14 +158,14 @@ void mapEmptyBuffers()
         if (bool_input[i/8][i%8] == NULL)
         {
             bool_input[i/8][i%8] = (IEC_BOOL *)malloc(sizeof(IEC_BOOL));
-			*bool_input[i/8][i%8] = 0;
+            *bool_input[i/8][i%8] = 0;
         }
     }
     for (int i = 0; i < MAX_ANALOG_INPUT; i++)
     {
         if (int_input[i] == NULL)
         {
-			int_input[i] = (IEC_UINT *)(modbus.input_regs + i);
+            int_input[i] = (IEC_UINT *)(modbus.input_regs + i);
         }
     }
     #if !defined(__AVR_ATmega328P__) && !defined(__AVR_ATmega168__) && !defined(__AVR_ATmega32U4__) && !defined(__AVR_ATmega16U4__)
@@ -191,7 +195,7 @@ void mapEmptyBuffers()
 
 void modbusTask()
 {
-    //Sync OpenPLC Buffers with Modbus Buffers	
+    //Sync OpenPLC Buffers with Modbus Buffers
     for (int i = 0; i < MAX_DIGITAL_OUTPUT; i++)
     {
         if (bool_output[i/8][i%8] != NULL)
@@ -243,10 +247,10 @@ void modbusTask()
             }
         }
     #endif
-    
+
     //Read changes from clients
     mbtask();
-    
+
     //Write changes back to OpenPLC Buffers
     for (int i = 0; i < MAX_DIGITAL_OUTPUT; i++)
     {
@@ -303,7 +307,8 @@ void scheduler()
     plcCycleTask();
 
     #ifdef USE_ARDUINO_SKETCH
-        sketch_loop();
+    if (!!sketch_cycle_task)
+        sketch_cycle_task();
     #endif
 
     #ifdef MODBUS_ENABLED
@@ -311,7 +316,7 @@ void scheduler()
     #endif
 }
 
-void loop() 
+void loop()
 {
     // ignore until next scan cycle (run lower priority tasks if time permits)
     // always rely on the difference between now (aka micros() ) and the last_run,
@@ -330,5 +335,10 @@ void loop()
     {
         modbusTask();
     }
+    #endif
+
+    #ifdef USE_ARDUINO_SKETCH
+    if (!!sketch_loop)
+        sketch_loop();
     #endif
 }
