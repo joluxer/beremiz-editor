@@ -21,12 +21,40 @@ unsigned long last_run = 0;
 
 #include "arduino_libs.h"
 
+extern "C" typedef struct retained_location
+{
+    void* value_location;
+    size_t value_size;
+} retained_location;
+
 #ifdef USE_ARDUINO_SKETCH
     __attribute__((weak)) void sketch_setup();
     __attribute__((weak)) void sketch_cycle_task();
     __attribute__((weak)) void sketch_loop();
     #include "ext/arduino_sketch.h"
 #endif
+
+// this define should move to the HAL, as different MCU have more or less memory
+#define MAX_RETAINED_VALUES 48
+
+static size_t retained_location_count = 0;
+static retained_location retained_data[MAX_RETAINED_VALUES];
+
+extern "C" void register_retained_value(const retained_location* retained_location)
+{
+    if (retained_location_count < MAX_RETAINED_VALUES) // do a simple overrun check, no idea, how to report violations of this condition
+    {
+        if (retained_location)
+        {
+            retained_data[retained_location_count] = *retained_location;
+            ++retained_location_count;
+        }
+    }
+}
+
+// these are defined weak, so they can eventually be implemented by some HAL or some arduino extension
+__attribute__((weak)) void load_retained_data(const retained_location* loc_array, size_t count);
+__attribute__((weak)) void save_retained_data(const retained_location* loc_array, size_t count);
 
 extern uint8_t pinMask_DIN[];
 extern uint8_t pinMask_AIN[];
@@ -66,6 +94,8 @@ void setup()
     config_init__();
     glueVars();
     hardwareInit();
+    if (!!load_retained_data)
+        load_retained_data(retained_data, retained_location_count);
     #ifdef MODBUS_ENABLED
         #ifdef MBSERIAL
             //Config Modbus Serial (port, speed, rs485 tx pin)
@@ -347,6 +377,8 @@ void plcCycleTask()
     config_run__(__tick++); //PLC Logic
     updateOutputBuffers();
     updateTime();
+    if (!!save_retained_data)
+        save_retained_data(retained_data, retained_location_count);
 }
 
 void scheduler()
