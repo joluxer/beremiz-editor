@@ -681,14 +681,17 @@ class ArduinoUploadDialog(wx.Dialog):
             define_file += '#define USE_STM32CAN_BLOCK\n'
 
         #Generate Arduino Extension (sketch) define
-        if self.arduino_sketch != None:
+        if self.arduino_sketch:
             define_file += '#define USE_ARDUINO_SKETCH\n'
             define_file += '#define ARDUINO_PLATFORM\n'
-            #Copy the sketch contents to the .h file
-            f = open(os.path.join(base_path, 'ext', 'arduino_sketch.h'), 'w')
-            f.write(self.arduino_sketch)
+            #Copy the sketch fragments to the .h file
+            sketch_path = os.path.join(base_path, 'ext', 'arduino_sketch.h')
+            with open(sketch_path, 'w') as f:
+                for sketch in self.arduino_sketch:
+                    f.write(sketch)
+                    f.write('\n')  # Add a separating newline after each sketch fragment
 
-        #Write file to disk
+        #Write defines header file to disk
         f = open(base_path+'defines.h', 'w')
         f.write(define_file)
         f.flush()
