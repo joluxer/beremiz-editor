@@ -252,6 +252,7 @@ void mbtask()
 #ifdef MBTCP
 void handle_tcp()
 {
+
 #ifdef MBTCP_ETHERNET
     EthernetClient client = mb_server.available();
 #endif  // MBTCP_ETHERNET
